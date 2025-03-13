@@ -1,0 +1,151 @@
+#include <WiFi.h>
+#include <PubSubClient.h>
+#include <DHT.h>
+
+// Configurações de Wi-Fi
+const char* ssid = "SUA_REDE_WIFI";
+const char* password = "SUA_SENHA_WIFI";
+
+// Configurações do MQTT
+const char* mqtt_server = "broker.hivemq.com"; // Broker MQTT público para testes
+const int mqtt_port = 1883;
+const char* mqtt_user = "usuario";
+const char* mqtt_password = "senha";
+
+// Tópicos MQTT
+const char* topic_luminosidade = "empresa/iluminacao/luminosidade";
+const char* topic_temperatura = "empresa/climatizacao/temperatura";
+const char* topic_umidade = "empresa/climatizacao/umidade";
+const char* topic_controle_luz = "empresa/iluminacao/controle";
+const char* topic_controle_clima = "empresa/climatizacao/controle";
+
+// Pinos do ESP32
+#define PIN_LDR 34          // Pino do sensor de luminosidade (LDR)
+#define PIN_DHT 4           // Pino do sensor DHT22
+#define PIN_RELE_LUZ 25     // Pino do relé para controle das lâmpadas
+#define PIN_RELE_CLIMA 26   // Pino do relé para controle da climatização
+
+// Inicializa o sensor DHT
+#define DHT_TYPE DHT22
+DHT dht(PIN_DHT, DHT_TYPE);
+
+// Variáveis globais
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+// Função para conectar ao Wi-Fi
+void setup_wifi() {
+  delay(10);
+  Serial.println();
+  Serial.print("Conectando à rede Wi-Fi: ");
+  Serial.println(ssid);
+
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.print(".");
+  }
+
+  Serial.println();
+  Serial.println("Conectado ao Wi-Fi");
+  Serial.print("Endereço IP: ");
+  Serial.println(WiFi.localIP());
+}
+
+// Função para conectar ao broker MQTT
+void reconnect() {
+  while (!client.connected()) {
+    Serial.print("Conectando ao broker MQTT...");
+    if (client.connect("ESP32Client", mqtt_user, mqtt_password)) {
+      Serial.println("Conectado");
+      client.subscribe(topic_controle_luz);   // Inscreve no tópico de controle das luzes
+      client.subscribe(topic_controle_clima); // Inscreve no tópico de controle da climatização
+    } else {
+      Serial.print("Falha, rc=");
+      Serial.print(client.state());
+      Serial.println(" Tentando novamente em 5 segundos...");
+      delay(5000);
+    }
+  }
+}
+
+// Função para processar mensagens MQTT recebidas
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Mensagem recebida no tópico: ");
+  Serial.println(topic);
+
+  // Controle das luzes
+  if (strcmp(topic, topic_controle_luz) == 0) {
+    if (payload[0] == '1') {
+      digitalWrite(PIN_RELE_LUZ, LOW);  // Liga o relé (luzes acesas)
+      Serial.println("Luzes ligadas");
+    } else if (payload[0] == '0') {
+      digitalWrite(PIN_RELE_LUZ, HIGH); // Desliga o relé (luzes apagadas)
+      Serial.println("Luzes desligadas");
+    }
+  }
+
+  // Controle da climatização
+  if (strcmp(topic, topic_controle_clima) == 0) {
+    if (payload[0] == '1') {
+      digitalWrite(PIN_RELE_CLIMA, LOW);  // Liga o relé (climatização ligada)
+      Serial.println("Climatização ligada");
+    } else if (payload[0] == '0') {
+      digitalWrite(PIN_RELE_CLIMA, HIGH); // Desliga o relé (climatização desligada)
+      Serial.println("Climatização desligada");
+    }
+  }
+}
+
+void setup() {
+  // Inicializa a serial
+  Serial.begin(115200);
+
+  // Configura os pinos
+  pinMode(PIN_LDR, INPUT);
+  pinMode(PIN_RELE_LUZ, OUTPUT);
+  pinMode(PIN_RELE_CLIMA, OUTPUT);
+  digitalWrite(PIN_RELE_LUZ, HIGH);  // Inicia com as luzes desligadas
+  digitalWrite(PIN_RELE_CLIMA, HIGH); // Inicia com a climatização desligada
+
+  // Inicializa o sensor DHT
+  dht.begin();
+
+  // Conecta ao Wi-Fi
+  setup_wifi();
+
+  // Configura o cliente MQTT
+  client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(callback);
+}
+
+void loop() {
+  // Verifica a conexão MQTT
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
+
+  // Lê a luminosidade
+  int luminosidade = analogRead(PIN_LDR);
+  Serial.print("Luminosidade: ");
+  Serial.println(luminosidade);
+
+  // Lê a temperatura e umidade
+  float temperatura = dht.readTemperature();
+  float umidade = dht.readHumidity();
+  Serial.print("Temperatura: ");
+  Serial.print(temperatura);
+  Serial.print(" °C, Umidade: ");
+  Serial.print(umidade);
+  Serial.println(" %");
+
+  // Publica os dados no MQTT
+  client.publish(topic_luminosidade, String(luminosidade).c_str());
+  client.publish(topic_temperatura, String(temperatura).c_str());
+  client.publish(topic_umidade, String(umidade).c_str());
+
+  // Aguarda 5 segundos antes de enviar novos dados
+  delay(5000);
+}
