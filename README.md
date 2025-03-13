@@ -50,17 +50,18 @@ Configuração do Hardware:**
 
 **Use um cliente MQTT (como MQTT Explorer ou MQTTX) para enviar comandos:**
 
-1> Envie 1 para empresa/iluminacao/controle para ligar as luzes.
+> Envie 1 para empresa/iluminacao/controle para ligar as luzes.
 
-2> Envie 0 para empresa/iluminacao/controle para desligar as luzes.
+> Envie 0 para empresa/iluminacao/controle para desligar as luzes.
 
-3> Faça o mesmo para empresa/climatizacao/controle.
+> Faça o mesmo para empresa/climatizacao/controle.
 
 **Monitoramento:**
 
 Verifique os dados publicados nos tópicos empresa/iluminacao/luminosidade, empresa/climatizacao/temperatura e empresa/climatizacao/umidade.
 
-Próximos Passos
+**Próximos Passos**
+
 1> Implementar uma interface web ou aplicativo móvel para controle remoto.
 
 2> Adicionar funcionalidades de segurança, como autenticação e criptografia.
